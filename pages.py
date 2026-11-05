@@ -28,15 +28,16 @@ class ReleaseListPage:
             EC.presence_of_element_located((By.CSS_SELECTOR, Selectors.TABLE_ROW))
         )
 
-    def parse_current_page_releases(self) -> list[ReleaseSummary]:
-        self.wait_for_table()
-        soup = BeautifulSoup(self.driver.page_source, "html.parser")
+    @staticmethod
+    def parse_table_html(html: str, base_url: str) -> list[ReleaseSummary]:
+        """Reine Funktion: Parst den HTML-Code der Tabelle ohne Selenium-Abhängigkeit."""
+        soup = BeautifulSoup(html, "html.parser")
         rows = soup.select(Selectors.TABLE_ROW)
         releases: list[ReleaseSummary] = []
 
         for row in rows:
             href = row.get("href", "")
-            full_url = urljoin(self.config.base_url, str(href))
+            full_url = urljoin(base_url, str(href))
 
             title_el = row.select_one(Selectors.CELL_TITLE)
             artist_el = row.select_one(Selectors.CELL_ARTIST)
@@ -67,6 +68,10 @@ class ReleaseListPage:
             )
 
         return releases
+
+    def parse_current_page_releases(self) -> list[ReleaseSummary]:
+        self.wait_for_table()
+        return self.parse_table_html(self.driver.page_source, self.config.base_url)
 
     def get_pagination_info(self) -> str:
         try:
@@ -119,32 +124,10 @@ class ReleaseDetailPage:
         self.config = config
         self.wait = WebDriverWait(driver, config.element_timeout)
 
-    def extract_tracks(self, release: ReleaseSummary) -> list[TrackRecord]:
-        self.driver.get(release.url)
-
-        try:
-            # Warten, bis mindestens ein ISRC-Label im DOM präsent ist
-            self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, Selectors.ISRC_LABEL))
-            )
-        except TimeoutException:
-            logger.warning(
-                f"Kein ISRC-Feld auf {release.url} gefunden (evtl. noch 'In Progress' ohne ISRC?)."
-            )
-            return [
-                TrackRecord(
-                    release_title=release.title,
-                    release_type=release.release_type,
-                    release_date=release.release_date,
-                    upc=release.upc,
-                    track_number="01",
-                    track_title=release.title,
-                    isrc="N/A",
-                    amuse_release_url=release.url,
-                )
-            ]
-
-        soup = BeautifulSoup(self.driver.page_source, "html.parser")
+    @staticmethod
+    def parse_detail_html(html: str, release: ReleaseSummary) -> list[TrackRecord]:
+        """Reine Funktion: Parst die Tracklist & ISRCs aus dem HTML-String."""
+        soup = BeautifulSoup(html, "html.parser")
         isrc_labels = soup.select(Selectors.ISRC_LABEL)
         tracks: list[TrackRecord] = []
 
@@ -185,3 +168,30 @@ class ReleaseDetailPage:
             )
 
         return tracks
+
+    def extract_tracks(self, release: ReleaseSummary) -> list[TrackRecord]:
+        self.driver.get(release.url)
+
+        try:
+            # Warten, bis mindestens ein ISRC-Label im DOM präsent ist
+            self.wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, Selectors.ISRC_LABEL))
+            )
+        except TimeoutException:
+            logger.warning(
+                f"Kein ISRC-Feld auf {release.url} gefunden (evtl. noch 'In Progress' ohne ISRC?)."
+            )
+            return [
+                TrackRecord(
+                    release_title=release.title,
+                    release_type=release.release_type,
+                    release_date=release.release_date,
+                    upc=release.upc,
+                    track_number="01",
+                    track_title=release.title,
+                    isrc="N/A",
+                    amuse_release_url=release.url,
+                )
+            ]
+
+        return self.parse_detail_html(self.driver.page_source, release)
