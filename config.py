@@ -1,14 +1,23 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+import sys
+
+
+def get_app_directory() -> Path:
+    """Gibt den Ordner der .exe zurück (oder den Skript-Ordner im Dev-Modus)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
 
 
 @dataclass(frozen=True)
 class ScraperConfig:
     start_url: str = "https://artist.amuse.io/studio/music/"
     base_url: str = "https://artist.amuse.io"
-    output_csv: Path = Path("amuse_isrc_export.csv")
+    output_csv: Path = field(
+        default_factory=lambda: get_app_directory() / "amuse_isrc_export.csv"
+    )
 
-    # Timeouts & Rate-Limiting (Schutz vor WAF / Rate-Limits)
     element_timeout: int = 15
     min_delay_sec: float = 0.8
     max_delay_sec: float = 1.8

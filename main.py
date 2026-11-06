@@ -110,5 +110,12 @@ def main() -> None:
         driver.quit()
 
 
+# Am Ende von main.py den Aufruf so absichern:
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"Unerwarteter Fehler: {e}", exc_info=True)
+    finally:
+        print("\n" + "=" * 70)
+        input("Programm beendet. Drücke [ENTER], um das Fenster zu schließen...")
